@@ -1,5 +1,6 @@
 /**
- * Escena 3D con Three.js: Sol, Tierra, Luna, estrellas y trayectorias.
+ * Escena 3D con Three.js: Sol, Tierra, Luna, asteroides, estrellas y trayectorias.
+ * Soporta la adición/eliminación dinámica de asteroides.
  */
 
 import * as THREE from "three";
@@ -24,6 +25,14 @@ let sunMesh, earthMesh, moonMesh;
 let earthTrailData, moonTrailData;
 let cachedRenderPositions = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
+// ── Asteroides dinámicos ──
+let asteroidMeshes = [];    // THREE.Mesh[]
+let asteroidTrails = [];    // trail data objects[]
+let asteroidGlows = [];     // THREE.Sprite[] (small glow for each)
+
+// Colores para asteroides (se ciclan)
+const ASTEROID_COLORS = [0xff8844, 0xffaa55, 0xffcc77, 0xee7733, 0xddaa66];
+
 /** Convierte posición SI → Three.js (exagera la Luna) */
 export function toRenderPos(bodyIndex) {
   const pos = bodies[bodyIndex].position;
@@ -38,6 +47,7 @@ export function toRenderPos(bodyIndex) {
     );
   }
 
+  // Sol, Tierra, y asteroides: escala lineal directa
   return new THREE.Vector3(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
 }
 
@@ -75,6 +85,26 @@ function createSunGlow() {
   const mat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, transparent: true });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(25, 25, 1);
+  return sprite;
+}
+
+function createAsteroidGlow(color) {
+  const c = document.createElement("canvas");
+  c.width = 64; c.height = 64;
+  const cx = c.getContext("2d");
+  const g = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  const r = (color >> 16) & 0xff;
+  const gv = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  g.addColorStop(0, `rgba(${r},${gv},${b},0.6)`);
+  g.addColorStop(0.4, `rgba(${r},${gv},${b},0.15)`);
+  g.addColorStop(1, `rgba(${r},${gv},${b},0)`);
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3, 3, 1);
   return sprite;
 }
 
@@ -146,7 +176,71 @@ export function initScene() {
   });
 }
 
+/**
+ * Añade la representación visual de un asteroide a la escena.
+ * @param {number} asteroidLocalIndex — índice dentro del array de asteroides (0-based)
+ */
+export function addAsteroidVisual(asteroidLocalIndex) {
+  const color = ASTEROID_COLORS[asteroidLocalIndex % ASTEROID_COLORS.length];
+
+  // Esfera pequeña para el asteroide
+  const geo = new THREE.SphereGeometry(0.4, 16, 16);
+  const mat = new THREE.MeshPhongMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.3,
+    shininess: 20,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  scene.add(mesh);
+  asteroidMeshes.push(mesh);
+
+  // Glow sprite
+  const glow = createAsteroidGlow(color);
+  mesh.add(glow);
+  asteroidGlows.push(glow);
+
+  // Trail
+  const trail = createTrail(color);
+  trail.line.material.opacity = 0.4;
+  asteroidTrails.push(trail);
+}
+
+/**
+ * Elimina todas las representaciones visuales de asteroides.
+ */
+export function removeAllAsteroidVisuals() {
+  for (const mesh of asteroidMeshes) {
+    scene.remove(mesh);
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
+  asteroidMeshes = [];
+  asteroidGlows = [];
+
+  for (const trail of asteroidTrails) {
+    scene.remove(trail.line);
+    trail.geo.dispose();
+    trail.line.material.dispose();
+  }
+  asteroidTrails = [];
+
+  // Actualizar cached positions a solo 3
+  cachedRenderPositions = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+}
+
 export function updateVisuals() {
+  const totalBodies = bodies.length;
+
+  // Asegurar que cachedRenderPositions tenga el tamaño correcto
+  while (cachedRenderPositions.length < totalBodies) {
+    cachedRenderPositions.push(new THREE.Vector3());
+  }
+  if (cachedRenderPositions.length > totalBodies) {
+    cachedRenderPositions.length = totalBodies;
+  }
+
+  // Base bodies (Sol, Tierra, Luna)
   cachedRenderPositions[0] = toRenderPos(0);
   cachedRenderPositions[1] = toRenderPos(1);
   cachedRenderPositions[2] = toRenderPos(2);
@@ -157,10 +251,22 @@ export function updateVisuals() {
 
   pushTrailPoint(earthTrailData, cachedRenderPositions[1].x, cachedRenderPositions[1].y, cachedRenderPositions[1].z);
   pushTrailPoint(moonTrailData, cachedRenderPositions[2].x, cachedRenderPositions[2].y, cachedRenderPositions[2].z);
+
+  // Asteroides
+  for (let i = 0; i < asteroidMeshes.length; i++) {
+    const bodyIdx = 3 + i;
+    if (bodyIdx >= totalBodies) break;
+
+    cachedRenderPositions[bodyIdx] = toRenderPos(bodyIdx);
+    asteroidMeshes[i].position.copy(cachedRenderPositions[bodyIdx]);
+
+    const rp = cachedRenderPositions[bodyIdx];
+    pushTrailPoint(asteroidTrails[i], rp.x, rp.y, rp.z);
+  }
 }
 
 export function clearTrails() {
-  for (const t of [earthTrailData, moonTrailData]) {
+  for (const t of [earthTrailData, moonTrailData, ...asteroidTrails]) {
     t.index = 0; t.count = 0;
     t.geo.setDrawRange(0, 0);
   }

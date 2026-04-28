@@ -1,11 +1,12 @@
 /**
  * HUD: controles de reproducción, sliders de configuración,
- * tarjetas de datos y alerta de colisión.
+ * tarjetas de datos, alerta de colisión y controles de asteroides.
  */
 
 import {
   DEFAULT_EARTH_V, DEFAULT_MOON_V,
   DEFAULT_SUN_MASS, DEFAULT_EARTH_MASS, DEFAULT_MOON_MASS,
+  DEFAULT_ASTEROID_MASS,
 } from "./bodies.js";
 
 // ── Estado de reproducción ──
@@ -19,6 +20,12 @@ let solVel, tierraVel, tierraDist, lunaVel, lunaDist;
 let slEarthV, slMoonV, slSunM, slEarthM, slMoonM;
 let vEarthV, vMoonV, vSunM, vEarthM, vMoonM;
 let btnPause, playbackLabel, collisionAlert;
+let asteroidCountEl;
+
+// Asteroid sliders
+let slAstSpeed, slAstDir, slAstMass;
+let vAstSpeed, vAstDir, vAstMass;
+let chkRandomDir;
 
 function logToMass(v) { return Math.pow(10, v); }
 function massToLog(m) { return Math.log10(m); }
@@ -31,11 +38,20 @@ function updateSliderTexts() {
   vMoonM.textContent = `${logToMass(parseFloat(slMoonM.value)).toExponential(2)} kg`;
 }
 
+function updateAsteroidSliderTexts() {
+  vAstSpeed.textContent = `${(parseInt(slAstSpeed.value) / 1000).toFixed(1)} km/s`;
+  vAstDir.textContent = chkRandomDir.checked ? "Aleatorio" : `${parseInt(slAstDir.value)}°`;
+  vAstMass.textContent = `${logToMass(parseFloat(slAstMass.value)).toExponential(2)} kg`;
+
+  // Dim the direction slider when random is checked
+  slAstDir.style.opacity = chkRandomDir.checked ? "0.35" : "1";
+}
+
 function updatePauseBtn() {
   btnPause.textContent = paused ? "▶" : "⏸";
 }
 
-export function initHUD({ onReset }) {
+export function initHUD({ onReset, onAddAsteroid, onClearAsteroids }) {
   // Data cards
   hudDays = document.getElementById("hud-days");
   hudEnergy = document.getElementById("hud-energy");
@@ -47,7 +63,7 @@ export function initHUD({ onReset }) {
   lunaVel = document.getElementById("luna-vel");
   lunaDist = document.getElementById("luna-dist");
 
-  // Sliders
+  // Sliders — System
   slEarthV = document.getElementById("slider-earth-v");
   slMoonV = document.getElementById("slider-moon-v");
   slSunM = document.getElementById("slider-sun-mass");
@@ -59,7 +75,19 @@ export function initHUD({ onReset }) {
   vEarthM = document.getElementById("val-earth-mass");
   vMoonM = document.getElementById("val-moon-mass");
 
-  // Defaults
+  // Sliders — Asteroids
+  slAstSpeed = document.getElementById("slider-ast-speed");
+  slAstDir = document.getElementById("slider-ast-dir");
+  slAstMass = document.getElementById("slider-ast-mass");
+  vAstSpeed = document.getElementById("val-ast-speed");
+  vAstDir = document.getElementById("val-ast-dir");
+  vAstMass = document.getElementById("val-ast-mass");
+  chkRandomDir = document.getElementById("chk-ast-random-dir");
+
+  // Asteroid count
+  asteroidCountEl = document.getElementById("asteroid-count");
+
+  // Defaults — System
   slEarthV.value = DEFAULT_EARTH_V;
   slMoonV.value = DEFAULT_MOON_V;
   slSunM.value = massToLog(DEFAULT_SUN_MASS);
@@ -67,8 +95,18 @@ export function initHUD({ onReset }) {
   slMoonM.value = massToLog(DEFAULT_MOON_MASS);
   updateSliderTexts();
 
+  // Defaults — Asteroids
+  slAstSpeed.value = 30000;
+  slAstDir.value = 0;
+  slAstMass.value = massToLog(DEFAULT_ASTEROID_MASS);
+  chkRandomDir.checked = true;
+  updateAsteroidSliderTexts();
+
   slEarthV.oninput = slMoonV.oninput =
     slSunM.oninput = slEarthM.oninput = slMoonM.oninput = updateSliderTexts;
+
+  slAstSpeed.oninput = slAstDir.oninput = slAstMass.oninput = updateAsteroidSliderTexts;
+  chkRandomDir.onchange = updateAsteroidSliderTexts;
 
   // Reset
   document.getElementById("btn-reset").addEventListener("click", () => {
@@ -86,6 +124,18 @@ export function initHUD({ onReset }) {
     slEarthM.value = massToLog(DEFAULT_EARTH_MASS);
     slMoonM.value = massToLog(DEFAULT_MOON_MASS);
     updateSliderTexts();
+  });
+
+  // ── Asteroids ──
+  document.getElementById("btn-add-asteroid").addEventListener("click", () => {
+    if (onAddAsteroid) {
+      const params = getAsteroidParams();
+      onAddAsteroid(params);
+    }
+  });
+
+  document.getElementById("btn-clear-asteroids").addEventListener("click", () => {
+    if (onClearAsteroids) onClearAsteroids();
   });
 
   // Playback
@@ -114,6 +164,20 @@ export function initHUD({ onReset }) {
   collisionAlert = document.getElementById("collision-alert");
 }
 
+/**
+ * Lee los parámetros configurados para el próximo asteroide.
+ * Si "Dirección aleatoria" está marcado, genera un ángulo aleatorio.
+ */
+function getAsteroidParams() {
+  const speed = parseFloat(slAstSpeed.value) || 30000;
+  const mass = logToMass(parseFloat(slAstMass.value));
+  const directionDeg = chkRandomDir.checked
+    ? Math.random() * 360
+    : parseFloat(slAstDir.value) || 0;
+
+  return { speed, directionDeg, mass };
+}
+
 export function updateHUD(s) {
   hudDays.textContent = s.elapsedDays.toFixed(1);
   hudEnergy.textContent = s.totalEnergy.toExponential(4);
@@ -126,6 +190,12 @@ export function updateHUD(s) {
     tierraDist.textContent = `${(s.distSunEarth / 1.496e11).toFixed(4)} AU`;
     lunaVel.textContent = `${s.bodyData[2].speed.toFixed(0)} m/s`;
     lunaDist.textContent = `${(s.distEarthMoon / 1000).toFixed(0)} km`;
+  }
+
+  // Actualizar conteo de asteroides
+  if (asteroidCountEl) {
+    const count = (s.bodyCount || 3) - 3;
+    asteroidCountEl.textContent = count;
   }
 }
 
@@ -143,9 +213,8 @@ export function isPaused() { return paused; }
 export function setPaused(v) { paused = v; updatePauseBtn(); }
 export function getSpeedMultiplier() { return SPEED_LEVELS[speedIndex]; }
 
-export function showCollisionAlert(a, b) {
-  const n = ["Sol", "Tierra", "Luna"];
-  collisionAlert.textContent = `⚠ COLISIÓN: ${n[a]} ↔ ${n[b]}`;
+export function showCollisionAlert(nameA, nameB) {
+  collisionAlert.textContent = `⚠ COLISIÓN: ${nameA} ↔ ${nameB}`;
   collisionAlert.classList.add("visible");
 }
 

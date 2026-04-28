@@ -2,6 +2,8 @@
  * Motor de simulación gravitacional.
  * Gestiona el estado del sistema, ejecuta pasos de integración RK4,
  * y calcula la energía mecánica total para monitorear la conservación.
+ *
+ * Soporta N cuerpos dinámicos (3 base + asteroides).
  */
 
 import {
@@ -11,15 +13,16 @@ import {
   DEFAULT_SUN_MASS,
   DEFAULT_EARTH_MASS,
   DEFAULT_MOON_MASS,
+  DEFAULT_ASTEROID_MASS,
 } from "../bodies.js";
 import { rk4Step, createRK4Temp } from "./rk4.js";
 
 const G = 6.674e-11; // Constante gravitacional
-const N = 3;         // Número de cuerpos
 const DT = 3600;     // Paso de integración: 1 hora en segundos
 
-let state;           // Float64Array(18) — vector de estado plano
-let masses;          // Float64Array(3)  — masas
+let N = 3;           // Número de cuerpos (dinámico)
+let state;           // Float64Array(N*6) — vector de estado plano
+let masses;          // Float64Array(N)   — masas
 let temp;            // Temporales pre-asignados para RK4
 let elapsedTime = 0; // Tiempo transcurrido en segundos
 let E0 = 0;          // Energía total inicial (para calcular error relativo)
@@ -29,6 +32,7 @@ let E0 = 0;          // Energía total inicial (para calcular error relativo)
  * Calcula la energía total inicial E₀.
  */
 export function initBodies() {
+  N = bodies.length;
   state = new Float64Array(N * 6);
   masses = new Float64Array(N);
 
@@ -134,17 +138,23 @@ export function getSimState() {
   const totalEnergy = computeTotalEnergy();
   const relativeError = Math.abs((totalEnergy - E0) / E0);
 
+  const bodyData = [];
+  for (let i = 0; i < N; i++) {
+    bodyData.push({
+      name: bodies[i].name,
+      speed: bodySpeed(i),
+      mass: masses[i],
+    });
+  }
+
   return {
     elapsedDays: elapsedTime / 86400,
     totalEnergy,
     initialEnergy: E0,
     relativeError,
     earthSpeed: bodySpeed(1),
-    bodyData: [
-      { name: "Sol", speed: bodySpeed(0), mass: masses[0] },
-      { name: "Tierra", speed: bodySpeed(1), mass: masses[1] },
-      { name: "Luna", speed: bodySpeed(2), mass: masses[2] },
-    ],
+    bodyData,
+    bodyCount: N,
     distSunEarth: bodyDist(0, 1),
     distEarthMoon: bodyDist(1, 2),
     distSunMoon: bodyDist(0, 2),
@@ -153,11 +163,12 @@ export function getSimState() {
 
 /**
  * Reinicia la simulación con nuevas velocidades iniciales.
- *
- * @param {number} earthV - Velocidad inicial de la Tierra (m/s)
- * @param {number} moonV  - Velocidad inicial de la Luna relativa a la Tierra (m/s)
+ * Elimina todos los asteroides al reiniciar.
  */
 export function resetSimulation(earthV, moonV, sunMass, earthMass, moonMass) {
+  // Eliminar asteroides del array de bodies
+  bodies.length = 3;
+
   bodies[0].position = [0, 0, 0];
   bodies[0].velocity = [0, 0, 0];
   bodies[0].mass = sunMass ?? DEFAULT_SUN_MASS;
@@ -171,4 +182,125 @@ export function resetSimulation(earthV, moonV, sunMass, earthMass, moonMass) {
   bodies[2].mass = moonMass ?? DEFAULT_MOON_MASS;
 
   initBodies();
+}
+
+/**
+ * Añade un asteroide que "cruza" el sistema.
+ * El asteroide aparece a una distancia lejana (2.5 AU) y se mueve
+ * hacia el sistema desde el ángulo especificado.
+ *
+ * @param {object} params - Parámetros del asteroide { speed, directionDeg, mass }
+ * @returns {{ index: number, body: object }} Índice y datos del asteroide
+ */
+export function addAsteroid(params = {}) {
+  const {
+    speed = 30000,
+    directionDeg = Math.random() * 360,
+    mass = DEFAULT_ASTEROID_MASS,
+  } = params;
+
+  const AU = 1.496e11;
+  const R_START = 2.5 * AU; // Distancia de inicio (fuera de la órbita terrestre)
+
+  // Interpretamos directionDeg como el ÁNGULO DE ORIGEN (de dónde viene)
+  const phi = directionDeg * (Math.PI / 180);
+
+  // Posición inicial en el círculo exterior
+  const startX = Math.cos(phi);
+  const startZ = Math.sin(phi);
+
+  // Vector perpendicular para el desplazamiento lateral
+  const lateralOffset = (Math.random() - 0.5) * 1.2 * AU; // +/- 0.6 AU
+  const perpX = -startZ;
+  const perpZ = startX;
+
+  const px = R_START * startX + lateralOffset * perpX;
+  const pz = R_START * startZ + lateralOffset * perpZ;
+
+  // La velocidad apunta hacia el origen (opuesto al vector de posición base)
+  // pero mantenemos la dirección paralela al radio para que "cruce" el centro.
+  const vx = -speed * startX;
+  const vz = -speed * startZ;
+
+  // Crear el cuerpo asteroide
+  const asteroidIndex = bodies.length;
+  const body = {
+    name: `Asteroide ${asteroidIndex - 2}`,
+    mass: mass,
+    position: [px, 0, pz],
+    velocity: [vx, 0, vz],
+    color: 0xff8844,
+    radius: 0.4,
+  };
+  bodies.push(body);
+
+  // Reconstruir arrays del integrador preservando el estado actual
+  _rebuildState();
+
+  return { index: asteroidIndex, body };
+}
+
+/**
+ * Elimina todos los asteroides del sistema, dejando solo Sol, Tierra y Luna.
+ * @returns {number} Número de asteroides eliminados
+ */
+export function removeAllAsteroids() {
+  const removed = bodies.length - 3;
+  if (removed <= 0) return 0;
+
+  bodies.length = 3;
+  _rebuildState();
+
+  return removed;
+}
+
+/** Devuelve la cantidad actual de cuerpos en la simulación */
+export function getBodyCount() {
+  return N;
+}
+
+/**
+ * Reconstruye los arrays de estado, masas y temporales RK4
+ * preservando los datos de los cuerpos existentes.
+ * Se llama internamente cuando se añaden o eliminan cuerpos.
+ */
+function _rebuildState() {
+  const oldN = N;
+  N = bodies.length;
+
+  const newState = new Float64Array(N * 6);
+  const newMasses = new Float64Array(N);
+
+  // Copiar datos existentes (min de oldN y N para no desbordar)
+  const copyCount = Math.min(oldN, N);
+  for (let i = 0; i < copyCount; i++) {
+    const off = i * 6;
+    newState[off + 0] = state[off + 0];
+    newState[off + 1] = state[off + 1];
+    newState[off + 2] = state[off + 2];
+    newState[off + 3] = state[off + 3];
+    newState[off + 4] = state[off + 4];
+    newState[off + 5] = state[off + 5];
+    newMasses[i] = masses[i];
+  }
+
+  // Escribir datos de los cuerpos nuevos (si hay)
+  for (let i = copyCount; i < N; i++) {
+    const b = bodies[i];
+    const off = i * 6;
+    newState[off + 0] = b.position[0];
+    newState[off + 1] = b.position[1];
+    newState[off + 2] = b.position[2];
+    newState[off + 3] = b.velocity[0];
+    newState[off + 4] = b.velocity[1];
+    newState[off + 5] = b.velocity[2];
+    newMasses[i] = b.mass;
+  }
+
+  state = newState;
+  masses = newMasses;
+  temp = createRK4Temp(N);
+
+  // Recalcular E0 para que el error relativo se mida desde el sistema actual
+  E0 = computeTotalEnergy();
 }

@@ -14,6 +14,7 @@
 export const DEFAULT_SUN_MASS = 1.989e30;
 export const DEFAULT_EARTH_MASS = 5.972e24;
 export const DEFAULT_MOON_MASS = 7.342e22;
+export const DEFAULT_ASTEROID_MASS = DEFAULT_MOON_MASS * 0.10; // 10% de la Luna
 export const DEFAULT_EARTH_V = 29783;
 export const DEFAULT_MOON_V = 1022;
 export const bodies = [

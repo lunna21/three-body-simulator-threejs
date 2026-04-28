@@ -1,29 +1,50 @@
 /**
  * Detección de colisiones y efecto visual de explosión con partículas.
+ * Soporta N cuerpos dinámicos.
  */
 
 import * as THREE from "three";
+import { bodies } from "./bodies.js";
 
 const PARTICLE_COUNT = 250;
 const EXPLOSION_DURATION = 2.5; // segundos
-const VISUAL_RADII = [5, 2, 0.8]; // Sol, Tierra, Luna (render units)
-const BODY_NAMES = ["Sol", "Tierra", "Luna"];
+const BASE_VISUAL_RADII = [5, 2, 0.8]; // Sol, Tierra, Luna (render units)
+const ASTEROID_VISUAL_RADIUS = 0.4;
 
 let explosions = [];
 let lastCollision = null;
 
 /**
+ * Obtiene el radio visual de un cuerpo dado su índice.
+ */
+function getVisualRadius(index) {
+  if (index < BASE_VISUAL_RADII.length) return BASE_VISUAL_RADII[index];
+  return ASTEROID_VISUAL_RADIUS;
+}
+
+/**
+ * Obtiene el nombre de un cuerpo dado su índice.
+ */
+function getBodyName(index) {
+  if (index < bodies.length) return bodies[index].name;
+  return `Cuerpo ${index}`;
+}
+
+/**
  * Revisa colisiones entre todos los pares de cuerpos en espacio de render.
- * @param {THREE.Vector3[]} renderPositions — posiciones renderizadas de los 3 cuerpos
+ * @param {THREE.Vector3[]} renderPositions — posiciones renderizadas de todos los cuerpos
  * @returns {{ bodyA: number, bodyB: number, position: THREE.Vector3, scale: number } | null}
  */
 export function checkCollisions(renderPositions) {
-  if (!renderPositions || renderPositions.length < 3) return null;
+  if (!renderPositions || renderPositions.length < 2) return null;
 
-  for (let i = 0; i < 3; i++) {
-    for (let j = i + 1; j < 3; j++) {
+  const n = renderPositions.length;
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (!renderPositions[i] || !renderPositions[j]) continue;
       const dist = renderPositions[i].distanceTo(renderPositions[j]);
-      const threshold = VISUAL_RADII[i] + VISUAL_RADII[j];
+      const threshold = getVisualRadius(i) + getVisualRadius(j);
       if (dist < threshold) {
         const midpoint = new THREE.Vector3()
           .addVectors(renderPositions[i], renderPositions[j])
@@ -177,4 +198,11 @@ export function clearExplosions() {
   }
   explosions = [];
   lastCollision = null;
+}
+
+/**
+ * Muestra el nombre de los cuerpos en la alerta de colisión.
+ */
+export function getCollisionNames(a, b) {
+  return { nameA: getBodyName(a), nameB: getBodyName(b) };
 }

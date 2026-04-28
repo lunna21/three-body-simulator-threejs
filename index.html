@@ -85,6 +85,58 @@
     .btn-row button:hover{transform:translateY(-1px)}
     .btn-row button:active{transform:translateY(0)}
 
+    /* ── Asteroid section ── */
+    .asteroid-section{
+      margin-top:14px;padding-top:12px;
+      border-top:1px solid rgba(255,160,60,0.15);
+    }
+    .asteroid-section .section-label{color:#cc8833}
+    .asteroid-badge{
+      display:inline-flex;align-items:center;justify-content:center;
+      background:rgba(255,136,68,0.15);color:#ffaa55;
+      border:1px solid rgba(255,136,68,0.25);border-radius:20px;
+      padding:2px 10px;font-size:11px;font-weight:600;
+      font-family:'JetBrains Mono',monospace;
+      margin-left:8px;vertical-align:middle;
+    }
+    .asteroid-section .ctrl-row input[type=range]{
+      background:rgba(140,80,30,0.3);
+    }
+    .asteroid-section .ctrl-row input[type=range]::-webkit-slider-thumb{
+      background:linear-gradient(135deg,#ee8833,#cc6622);
+      box-shadow:0 0 6px rgba(255,150,50,0.4);
+    }
+    .asteroid-section .slider-val{color:#ffcc88}
+    .dir-row{display:flex;align-items:center;gap:6px}
+    .dir-row input[type=range]{flex:1}
+    .random-toggle{
+      display:flex;align-items:center;gap:4px;
+      font-size:9px;color:#cc8833;cursor:pointer;
+      white-space:nowrap;margin-top:4px;
+    }
+    .random-toggle input[type=checkbox]{
+      accent-color:#ff9944;width:13px;height:13px;cursor:pointer;
+    }
+    .btn-asteroid-row{display:flex;gap:8px;margin-top:10px}
+    .btn-asteroid-row button{
+      flex:1;padding:9px 0;border:none;border-radius:8px;
+      font-family:'Inter',sans-serif;font-size:12px;font-weight:600;
+      letter-spacing:0.8px;text-transform:uppercase;cursor:pointer;
+      transition:transform 0.12s,box-shadow 0.12s;
+    }
+    #btn-add-asteroid{
+      background:linear-gradient(135deg,#cc7722,#ff9944);color:#fff;
+      box-shadow:0 2px 10px rgba(200,120,30,0.3);
+    }
+    #btn-add-asteroid:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(255,150,50,0.4)}
+    #btn-add-asteroid:active{transform:translateY(0)}
+    #btn-clear-asteroids{
+      background:rgba(60,40,30,0.6);color:#cc8855;
+      border:1px solid rgba(255,136,68,0.2);
+    }
+    #btn-clear-asteroids:hover{transform:translateY(-1px);background:rgba(80,50,30,0.7)}
+    #btn-clear-asteroids:active{transform:translateY(0)}
+
     /* ── Playback (bottom center) ── */
     #playback{
       position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:10;
@@ -217,6 +269,33 @@
     <div class="btn-row">
       <button id="btn-reset">🔄 Reiniciar</button>
       <button id="btn-defaults">↩ Defaults</button>
+    </div>
+
+    <div class="asteroid-section">
+      <div class="section-label">Asteroides <span id="asteroid-count" class="asteroid-badge">0</span></div>
+
+      <div class="ctrl-row">
+        <label>Velocidad <span id="val-ast-speed" class="slider-val"></span></label>
+        <input type="range" id="slider-ast-speed" min="5000" max="80000" step="500" value="30000" />
+      </div>
+      <div class="ctrl-row">
+        <label>Dirección θ <span id="val-ast-dir" class="slider-val"></span></label>
+        <div class="dir-row">
+          <input type="range" id="slider-ast-dir" min="0" max="360" step="1" value="0" />
+        </div>
+        <label class="random-toggle">
+          <input type="checkbox" id="chk-ast-random-dir" checked /> Dirección aleatoria
+        </label>
+      </div>
+      <div class="ctrl-row">
+        <label>Masa <span id="val-ast-mass" class="slider-val"></span></label>
+        <input type="range" id="slider-ast-mass" min="18" max="24" step="0.05" value="21.87" />
+      </div>
+
+      <div class="btn-asteroid-row">
+        <button id="btn-add-asteroid">☄ Añadir</button>
+        <button id="btn-clear-asteroids">🗑 Limpiar</button>
+      </div>
     </div>
   </div>
 

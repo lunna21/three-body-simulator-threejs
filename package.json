@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "dev": "vite --open"
+  },
   "dependencies": {
     "three": "^0.184.0"
   },
