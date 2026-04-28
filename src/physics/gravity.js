@@ -4,7 +4,14 @@
  * y calcula la energía mecánica total para monitorear la conservación.
  */
 
-import { bodies, DEFAULT_EARTH_V, DEFAULT_MOON_V } from "../bodies.js";
+import {
+  bodies,
+  DEFAULT_EARTH_V,
+  DEFAULT_MOON_V,
+  DEFAULT_SUN_MASS,
+  DEFAULT_EARTH_MASS,
+  DEFAULT_MOON_MASS,
+} from "../bodies.js";
 import { rk4Step, createRK4Temp } from "./rk4.js";
 
 const G = 6.674e-11; // Constante gravitacional
@@ -101,25 +108,46 @@ export function computeTotalEnergy() {
   return ke + pe;
 }
 
+/** Distancia entre dos cuerpos (metros) */
+function bodyDist(a, b) {
+  const aOff = a * 6,
+    bOff = b * 6;
+  const dx = state[bOff] - state[aOff];
+  const dy = state[bOff + 1] - state[aOff + 1];
+  const dz = state[bOff + 2] - state[aOff + 2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/** Velocidad escalar de un cuerpo (m/s) */
+function bodySpeed(i) {
+  const off = i * 6;
+  const vx = state[off + 3],
+    vy = state[off + 4],
+    vz = state[off + 5];
+  return Math.sqrt(vx * vx + vy * vy + vz * vz);
+}
+
 /**
- * Devuelve el estado actual de la simulación para el HUD.
+ * Devuelve el estado completo de la simulación para el HUD y la gráfica.
  */
 export function getSimState() {
   const totalEnergy = computeTotalEnergy();
   const relativeError = Math.abs((totalEnergy - E0) / E0);
-
-  // Velocidad de la Tierra (cuerpo índice 1)
-  const vx = state[1 * 6 + 3];
-  const vy = state[1 * 6 + 4];
-  const vz = state[1 * 6 + 5];
-  const earthSpeed = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
   return {
     elapsedDays: elapsedTime / 86400,
     totalEnergy,
     initialEnergy: E0,
     relativeError,
-    earthSpeed,
+    earthSpeed: bodySpeed(1),
+    bodyData: [
+      { name: "Sol", speed: bodySpeed(0), mass: masses[0] },
+      { name: "Tierra", speed: bodySpeed(1), mass: masses[1] },
+      { name: "Luna", speed: bodySpeed(2), mass: masses[2] },
+    ],
+    distSunEarth: bodyDist(0, 1),
+    distEarthMoon: bodyDist(1, 2),
+    distSunMoon: bodyDist(0, 2),
   };
 }
 
@@ -129,15 +157,18 @@ export function getSimState() {
  * @param {number} earthV - Velocidad inicial de la Tierra (m/s)
  * @param {number} moonV  - Velocidad inicial de la Luna relativa a la Tierra (m/s)
  */
-export function resetSimulation(earthV, moonV) {
+export function resetSimulation(earthV, moonV, sunMass, earthMass, moonMass) {
   bodies[0].position = [0, 0, 0];
   bodies[0].velocity = [0, 0, 0];
+  bodies[0].mass = sunMass ?? DEFAULT_SUN_MASS;
 
   bodies[1].position = [1.496e11, 0, 0];
   bodies[1].velocity = [0, 0, earthV];
+  bodies[1].mass = earthMass ?? DEFAULT_EARTH_MASS;
 
   bodies[2].position = [1.496e11 + 3.844e8, 0, 0];
   bodies[2].velocity = [0, 0, earthV + moonV];
+  bodies[2].mass = moonMass ?? DEFAULT_MOON_MASS;
 
   initBodies();
 }

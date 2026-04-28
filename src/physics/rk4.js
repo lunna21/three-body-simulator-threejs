@@ -64,8 +64,12 @@ export function computeDerivatives(state, masses, n, out) {
       const dy = state[jOff + 1] - state[iOff + 1];
       const dz = state[jOff + 2] - state[iOff + 2];
 
-      // Distancia |r_j − r_i|
-      const distSq = dx * dx + dy * dy + dz * dz;
+      // Distancia |r_j − r_i| con suavizado (softening)
+      // El softening evita que la fuerza se vuelva infinita cuando dist → 0
+      // lo cual causaría inestabilidad numérica en colisiones cercanas
+      const SOFTENING_SQ = 1e14; // (1e7 m)² ≈ (10,000 km)²
+      const rawDistSq = dx * dx + dy * dy + dz * dz;
+      const distSq = rawDistSq + SOFTENING_SQ;
       const dist = Math.sqrt(distSq);
 
       // Magnitud de la aceleración: G · m_j / |r|³
