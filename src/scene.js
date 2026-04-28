@@ -37,17 +37,27 @@ const ASTEROID_COLORS = [0xff8844, 0xffaa55, 0xffcc77, 0xee7733, 0xddaa66];
 export function toRenderPos(bodyIndex) {
   const pos = bodies[bodyIndex].position;
 
-  if (bodyIndex === 2) {
-    // Luna: exagerar el offset desde la Tierra
+  // Los cuerpos que no son el Sol (0) ni la Tierra (1) pueden necesitar exageración
+  // si están en las cercanías del sistema Tierra-Luna para visualización.
+  if (bodyIndex >= 2) {
     const ep = bodies[1].position;
-    return new THREE.Vector3(
-      ep[0] * SCALE + (pos[0] - ep[0]) * SCALE * MOON_EXAGGERATION,
-      ep[1] * SCALE + (pos[1] - ep[1]) * SCALE * MOON_EXAGGERATION,
-      ep[2] * SCALE + (pos[2] - ep[2]) * SCALE * MOON_EXAGGERATION
-    );
+    const dx = pos[0] - ep[0];
+    const dy = pos[1] - ep[1];
+    const dz = pos[2] - ep[2];
+    const distToEarth = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Si está a menos de 1.2 millones de km de la Tierra, usamos la escala de la Luna.
+    // Esto asegura que los asteroides que pasan cerca de la Luna se vean cerca de ella.
+    if (distToEarth < 1.2e9) {
+      return new THREE.Vector3(
+        ep[0] * SCALE + dx * SCALE * MOON_EXAGGERATION,
+        ep[1] * SCALE + dy * SCALE * MOON_EXAGGERATION,
+        ep[2] * SCALE + dz * SCALE * MOON_EXAGGERATION
+      );
+    }
   }
 
-  // Sol, Tierra, y asteroides: escala lineal directa
+  // Sol, Tierra, y cuerpos lejanos: escala lineal directa
   return new THREE.Vector3(pos[0] * SCALE, pos[1] * SCALE, pos[2] * SCALE);
 }
 
@@ -227,6 +237,29 @@ export function removeAllAsteroidVisuals() {
 
   // Actualizar cached positions a solo 3
   cachedRenderPositions = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+}
+
+/**
+ * Elimina la representación visual de un asteroide específico.
+ * @param {number} localIndex - Índice en el array de meshes de asteroides.
+ */
+export function removeAsteroidVisual(localIndex) {
+  if (localIndex < 0 || localIndex >= asteroidMeshes.length) return;
+
+  const mesh = asteroidMeshes[localIndex];
+  const trail = asteroidTrails[localIndex];
+
+  scene.remove(mesh);
+  mesh.geometry.dispose();
+  mesh.material.dispose();
+
+  scene.remove(trail.line);
+  trail.geo.dispose();
+  trail.line.material.dispose();
+
+  asteroidMeshes.splice(localIndex, 1);
+  asteroidGlows.splice(localIndex, 1);
+  asteroidTrails.splice(localIndex, 1);
 }
 
 export function updateVisuals() {

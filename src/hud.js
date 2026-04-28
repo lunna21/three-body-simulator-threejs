@@ -51,7 +51,7 @@ function updatePauseBtn() {
   btnPause.textContent = paused ? "▶" : "⏸";
 }
 
-export function initHUD({ onReset, onAddAsteroid, onClearAsteroids }) {
+export function initHUD({ onReset, onAddAsteroid, onClearAsteroids, onSlingshot }) {
   // Data cards
   hudDays = document.getElementById("hud-days");
   hudEnergy = document.getElementById("hud-energy");
@@ -138,6 +138,10 @@ export function initHUD({ onReset, onAddAsteroid, onClearAsteroids }) {
     if (onClearAsteroids) onClearAsteroids();
   });
 
+  document.getElementById("btn-slingshot").addEventListener("click", () => {
+    if (onSlingshot) onSlingshot();
+  });
+
   // Playback
   btnPause = document.getElementById("btn-pause");
   playbackLabel = document.getElementById("playback-label");
@@ -216,6 +220,19 @@ export function getSpeedMultiplier() { return SPEED_LEVELS[speedIndex]; }
 export function showCollisionAlert(nameA, nameB) {
   collisionAlert.textContent = `⚠ COLISIÓN: ${nameA} ↔ ${nameB}`;
   collisionAlert.classList.add("visible");
+}
+
+/**
+ * Muestra un aviso de colisión que se oculta automáticamente (para asteroides vs Sol).
+ */
+export function showWarningAlert(nameA, nameB) {
+  collisionAlert.textContent = `☄ CONSUMIDO: ${nameA} absorbido por ${nameB}`;
+  collisionAlert.classList.add("visible");
+  
+  // Auto-ocultar después de 3 segundos
+  setTimeout(() => {
+    hideCollisionAlert();
+  }, 3000);
 }
 
 export function hideCollisionAlert() {

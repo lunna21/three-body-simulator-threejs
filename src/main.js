@@ -3,11 +3,11 @@
  * Conecta física (RK4), escena 3D, HUD, gráfica, colisiones y asteroides.
  */
 
-import { initScene, updateVisuals, clearTrails, render, getRenderPositions, getScene, addAsteroidVisual, removeAllAsteroidVisuals } from "./scene.js";
-import { initBodies, updateBodies, getSimState, resetSimulation, addAsteroid, removeAllAsteroids } from "./physics/gravity.js";
-import { initHUD, updateHUD, getControlValues, isPaused, setPaused, getSpeedMultiplier, showCollisionAlert, hideCollisionAlert } from "./hud.js";
+import { initBodies, updateBodies, getSimState, resetSimulation, addAsteroid, removeAllAsteroids, addSlingshotAsteroid, removeAsteroid } from "./physics/gravity.js";
+import { initHUD, updateHUD, getControlValues, isPaused, setPaused, getSpeedMultiplier, showCollisionAlert, hideCollisionAlert, showWarningAlert } from "./hud.js";
 import { initChart, pushChartData, renderChart, clearChartData } from "./chart.js";
-import { checkCollisions, spawnExplosion, updateExplosions, clearExplosions, getCollisionNames } from "./collision.js";
+import { checkCollisions, spawnExplosion, updateExplosions, clearExplosions, getCollisionNames, getBodyName } from "./collision.js";
+import { initScene, updateVisuals, clearTrails, render, getRenderPositions, getScene, addAsteroidVisual, removeAllAsteroidVisuals, removeAsteroidVisual } from "./scene.js";
 
 const BASE_STEPS = 50;
 let lastTime = 0;
@@ -41,6 +41,11 @@ initHUD({
       clearTrails();
     }
   },
+  onSlingshot: () => {
+    const { index, body } = addSlingshotAsteroid();
+    addAsteroidVisual(asteroidLocalCount);
+    asteroidLocalCount++;
+  },
 });
 
 function animate(time) {
@@ -55,10 +60,30 @@ function animate(time) {
     // Colisiones
     const collision = checkCollisions(getRenderPositions());
     if (collision) {
-      setPaused(true);
-      spawnExplosion(getScene(), collision.position, collision.scale);
       const { nameA, nameB } = getCollisionNames(collision.bodyA, collision.bodyB);
-      showCollisionAlert(nameA, nameB);
+      
+      // Caso especial: Asteroide colisiona con el Sol
+      const isSunA = collision.bodyA === 0;
+      const isSunB = collision.bodyB === 0;
+      const isAstA = collision.bodyA >= 3;
+      const isAstB = collision.bodyB >= 3;
+
+      if ((isSunA && isAstB) || (isSunB && isAstA)) {
+        const asteroidIdx = isAstA ? collision.bodyA : collision.bodyB;
+        
+        // Efecto visual
+        spawnExplosion(getScene(), collision.position, collision.scale);
+        showWarningAlert(getBodyName(asteroidIdx), "Sol");
+        
+        // Eliminar asteroide
+        removeAsteroid(asteroidIdx);
+        removeAsteroidVisual(asteroidIdx - 3);
+      } else {
+        // Colisión normal (Tierra, Luna o entre astros principales) -> PAUSA
+        setPaused(true);
+        spawnExplosion(getScene(), collision.position, collision.scale);
+        showCollisionAlert(nameA, nameB);
+      }
     }
 
     // Gráfica (cada 3 frames)

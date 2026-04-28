@@ -74,6 +74,22 @@ export function updateBodies(steps) {
     bodies[i].velocity[0] = state[off + 3];
     bodies[i].velocity[1] = state[off + 4];
     bodies[i].velocity[2] = state[off + 5];
+
+    // Tracking para slingshot (solo asteroides, i >= 3)
+    if (i >= 3) {
+      const distToMoon = bodyDist(i, 2);
+      const distToEarth = bodyDist(i, 1);
+      
+      if (distToMoon < 1e7 || distToEarth < 2e7) {
+        if (!bodies[i]._slingshotActive) {
+          console.log(`%c🚀 ASISTENCIA GRAVITATORIA: ${bodies[i].name} entrando en zona de influencia.`, "color: #ff44ff; font-weight: bold;");
+          bodies[i]._slingshotActive = true;
+        }
+      } else if (bodies[i]._slingshotActive) {
+        console.log(`%c✨ SLINGSHOT COMPLETADO: ${bodies[i].name} ha sido arrojado a una nueva trayectoria.`, "color: #ffaa00; font-weight: bold;");
+        bodies[i]._slingshotActive = false;
+      }
+    }
   }
 }
 
@@ -241,6 +257,43 @@ export function addAsteroid(params = {}) {
 }
 
 /**
+ * Añade un asteroide "quemado" (hardcoded) diseñado para pasar cerca de la Luna
+ * y demostrar el efecto de asistencia gravitatoria (slingshot).
+ */
+export function addSlingshotAsteroid() {
+  const AU = 1.496e11;
+  const MOON_DIST = 3.844e8;
+  
+  // Posición de la Tierra en t=0
+  const ex = AU;
+  const ez = 0;
+  
+  // Posición de la Luna en t=0
+  const mx = ex + MOON_DIST;
+  const mz = 0;
+
+  // Queremos que el asteroide pase cerca de la luna.
+  // Lo lanzamos desde "abajo" (Z negativo) para que alcance a la Luna.
+  // La Luna se mueve a ~30.8 km/s en Z.
+  // Lanzamos el asteroide a 35 km/s en Z.
+  
+  const asteroidIndex = bodies.length;
+  const body = {
+    name: `Slinger ${asteroidIndex - 2}`,
+    mass: DEFAULT_MOON_MASS * 0.001, // 0.1% de la Luna (masa pequeña como pide el usuario)
+    position: [mx + 1e7, 0, -3e8],  // 10,000 km a la derecha, 300,000 km atrás
+    velocity: [0, 0, 36000],        // 36 km/s (alcanza a la Luna que va a 30.8 km/s)
+    color: 0xff44ff,
+    radius: 0.6,
+  };
+  
+  bodies.push(body);
+  _rebuildState();
+  
+  return { index: asteroidIndex, body };
+}
+
+/**
  * Elimina todos los asteroides del sistema, dejando solo Sol, Tierra y Luna.
  * @returns {number} Número de asteroides eliminados
  */
@@ -252,6 +305,34 @@ export function removeAllAsteroids() {
   _rebuildState();
 
   return removed;
+}
+
+/**
+ * Elimina un asteroide específico del sistema.
+ * @param {number} index - Índice del cuerpo en el array `bodies`.
+ */
+export function removeAsteroid(index) {
+  if (index < 3 || index >= bodies.length) return;
+  bodies.splice(index, 1);
+
+  // Re-inicializar arrays planos preservando el tiempo transcurrido
+  N = bodies.length;
+  state = new Float64Array(N * 6);
+  masses = new Float64Array(N);
+
+  for (let i = 0; i < N; i++) {
+    const b = bodies[i];
+    masses[i] = b.mass;
+    state[i * 6 + 0] = b.position[0];
+    state[i * 6 + 1] = b.position[1];
+    state[i * 6 + 2] = b.position[2];
+    state[i * 6 + 3] = b.velocity[0];
+    state[i * 6 + 4] = b.velocity[1];
+    state[i * 6 + 5] = b.velocity[2];
+  }
+
+  temp = createRK4Temp(N);
+  E0 = computeTotalEnergy();
 }
 
 /** Devuelve la cantidad actual de cuerpos en la simulación */

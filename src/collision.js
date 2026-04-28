@@ -25,7 +25,7 @@ function getVisualRadius(index) {
 /**
  * Obtiene el nombre de un cuerpo dado su índice.
  */
-function getBodyName(index) {
+export function getBodyName(index) {
   if (index < bodies.length) return bodies[index].name;
   return `Cuerpo ${index}`;
 }
