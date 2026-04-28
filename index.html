@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulación 3 Cuerpos — Sol · Tierra · Luna</title>
+  <meta name="description" content="Simulador 3D del problema de 3 cuerpos (Sol, Tierra, Luna) usando Three.js y un integrador RK4." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: #000;
+      font-family: 'Inter', sans-serif;
+      color: #e0e0e0;
+    }
+
+    /* ── Panel HUD (información) ── */
+    #hud {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      background: rgba(8, 10, 22, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 12px;
+      padding: 18px 22px;
+      min-width: 270px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.75;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    #hud h2 {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #7aa2ff;
+      margin-bottom: 10px;
+      border-bottom: 1px solid rgba(100, 140, 255, 0.15);
+      padding-bottom: 8px;
+    }
+
+    .hud-label {
+      color: #8899bb;
+    }
+
+    .hud-value {
+      color: #d0e0ff;
+      font-weight: 600;
+    }
+
+    .hud-value.energy { color: #ffcc44; }
+    .hud-value.error  { color: #66eebb; }
+    .hud-value.speed  { color: #88bbff; }
+
+    /* ── Panel de controles ── */
+    #controls {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+      background: rgba(8, 10, 22, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(100, 140, 255, 0.15);
+      border-radius: 12px;
+      padding: 18px 22px;
+      min-width: 250px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    #controls h2 {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #7aa2ff;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(100, 140, 255, 0.15);
+      padding-bottom: 8px;
+    }
+
+    .ctrl-group {
+      margin-bottom: 12px;
+    }
+
+    .ctrl-group label {
+      display: block;
+      color: #8899bb;
+      font-size: 11px;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .ctrl-group input {
+      width: 100%;
+      padding: 7px 10px;
+      background: rgba(20, 25, 50, 0.7);
+      border: 1px solid rgba(100, 140, 255, 0.2);
+      border-radius: 6px;
+      color: #d0e0ff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .ctrl-group input:focus {
+      border-color: rgba(100, 160, 255, 0.5);
+    }
+
+    #btn-reset {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: linear-gradient(135deg, #3366cc, #5588ee);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 12px rgba(50, 100, 220, 0.25);
+    }
+
+    #btn-reset:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 18px rgba(50, 100, 220, 0.4);
+    }
+
+    #btn-reset:active {
+      transform: translateY(0);
+    }
+
+    /* ── Leyenda de colores ── */
+    .legend {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(100, 140, 255, 0.1);
+      font-size: 12px;
+      line-height: 1.9;
+    }
+    .legend-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Panel de información -->
+  <div id="hud">
+    <h2>☀ Simulación 3 Cuerpos</h2>
+    <div><span class="hud-label">Días transcurridos:</span> <span id="hud-days" class="hud-value">0</span></div>
+    <div><span class="hud-label">Energía total:</span> <span id="hud-energy" class="hud-value energy">0</span> <span class="hud-label">J</span></div>
+    <div><span class="hud-label">Error relativo:</span> <span id="hud-error" class="hud-value error">0</span></div>
+    <div><span class="hud-label">Vel. Tierra:</span> <span id="hud-speed" class="hud-value speed">0</span> <span class="hud-label">m/s</span></div>
+
+    <div class="legend">
+      <div><span class="legend-dot" style="background:#ffdd44"></span>Sol</div>
+      <div><span class="legend-dot" style="background:#4488ff"></span>Tierra <span style="color:#6688aa">— trayectoria</span></div>
+      <div><span class="legend-dot" style="background:#cccccc"></span>Luna <span style="color:#ff88aa">— trayectoria</span></div>
+    </div>
+  </div>
+
+  <!-- Panel de controles -->
+  <div id="controls">
+    <h2>⚙ Parámetros</h2>
+    <div class="ctrl-group">
+      <label>Velocidad Tierra v₀ (m/s)</label>
+      <input type="number" id="input-earth-v" step="100" />
+    </div>
+    <div class="ctrl-group">
+      <label>Velocidad Luna v₀ relativa (m/s)</label>
+      <input type="number" id="input-moon-v" step="50" />
+    </div>
+    <div class="ctrl-group">
+      <label>Pasos RK4 / frame (velocidad sim.)</label>
+      <input type="range" id="input-steps" min="1" max="200" value="50" />
+    </div>
+    <button id="btn-reset">🔄 Reiniciar</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
