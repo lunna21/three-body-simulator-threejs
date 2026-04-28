@@ -67,7 +67,7 @@ export function computeDerivatives(state, masses, n, out) {
       // Distancia |r_j − r_i| con suavizado (softening)
       // El softening evita que la fuerza se vuelva infinita cuando dist → 0
       // lo cual causaría inestabilidad numérica en colisiones cercanas
-      const SOFTENING_SQ = 1e14; // (1e7 m)² ≈ (10,000 km)²
+      const SOFTENING_SQ = 1e10; // (1e5 m)² = (100 km)² — mucho más preciso para encuentros cercanos
       const rawDistSq = dx * dx + dy * dy + dz * dz;
       const distSq = rawDistSq + SOFTENING_SQ;
       const dist = Math.sqrt(distSq);

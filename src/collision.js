@@ -36,6 +36,8 @@ export function getBodyName(index) {
  * @returns {{ bodyA: number, bodyB: number, position: THREE.Vector3, scale: number } | null}
  */
 export function checkCollisions(renderPositions) {
+  // (mantenemos la versión visual por compatibilidad si se necesitara,
+  // pero usaremos la física en el bucle principal)
   if (!renderPositions || renderPositions.length < 2) return null;
 
   const n = renderPositions.length;

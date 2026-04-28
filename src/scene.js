@@ -22,7 +22,7 @@ const MAX_TRAIL_POINTS = 8000;
 
 let scene, camera, renderer, controls;
 let sunMesh, earthMesh, moonMesh;
-let earthTrailData, moonTrailData;
+let sunTrailData, earthTrailData, moonTrailData;
 let cachedRenderPositions = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
 // ── Asteroides dinámicos ──
@@ -48,7 +48,9 @@ export function toRenderPos(bodyIndex) {
 
     // Si está a menos de 1.2 millones de km de la Tierra, usamos la escala de la Luna.
     // Esto asegura que los asteroides que pasan cerca de la Luna se vean cerca de ella.
-    if (distToEarth < 1.2e9) {
+    // Solo lo aplicamos si el cuerpo NO es masivo (evitamos exagerar un planeta o segundo Sol).
+    const isMassive = bodies[bodyIndex].mass > 1e23; // > masa de la Luna
+    if (distToEarth < 1.2e9 && !isMassive) {
       return new THREE.Vector3(
         ep[0] * SCALE + dx * SCALE * MOON_EXAGGERATION,
         ep[1] * SCALE + dy * SCALE * MOON_EXAGGERATION,
@@ -176,6 +178,7 @@ export function initScene() {
   moonMesh = new THREE.Mesh(new THREE.SphereGeometry(0.8, 24, 24), new THREE.MeshPhongMaterial({ color: 0xcccccc, shininess: 10 }));
   scene.add(moonMesh);
 
+  sunTrailData = createTrail(0xffee33);
   earthTrailData = createTrail(0x6688aa);
   moonTrailData = createTrail(0xff88aa);
 
@@ -282,6 +285,7 @@ export function updateVisuals() {
   earthMesh.position.copy(cachedRenderPositions[1]);
   moonMesh.position.copy(cachedRenderPositions[2]);
 
+  pushTrailPoint(sunTrailData, cachedRenderPositions[0].x, cachedRenderPositions[0].y, cachedRenderPositions[0].z);
   pushTrailPoint(earthTrailData, cachedRenderPositions[1].x, cachedRenderPositions[1].y, cachedRenderPositions[1].z);
   pushTrailPoint(moonTrailData, cachedRenderPositions[2].x, cachedRenderPositions[2].y, cachedRenderPositions[2].z);
 
@@ -299,7 +303,7 @@ export function updateVisuals() {
 }
 
 export function clearTrails() {
-  for (const t of [earthTrailData, moonTrailData, ...asteroidTrails]) {
+  for (const t of [sunTrailData, earthTrailData, moonTrailData, ...asteroidTrails]) {
     t.index = 0; t.count = 0;
     t.geo.setDrawRange(0, 0);
   }

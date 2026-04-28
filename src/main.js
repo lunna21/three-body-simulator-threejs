@@ -8,6 +8,7 @@ import { initHUD, updateHUD, getControlValues, isPaused, setPaused, getSpeedMult
 import { initChart, pushChartData, renderChart, clearChartData } from "./chart.js";
 import { checkCollisions, spawnExplosion, updateExplosions, clearExplosions, getCollisionNames, getBodyName } from "./collision.js";
 import { initScene, updateVisuals, clearTrails, render, getRenderPositions, getScene, addAsteroidVisual, removeAllAsteroidVisuals, removeAsteroidVisual } from "./scene.js";
+import { bodies } from "./bodies.js";
 
 const BASE_STEPS = 50;
 let lastTime = 0;
